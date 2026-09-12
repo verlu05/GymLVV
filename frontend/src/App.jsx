@@ -69,7 +69,7 @@ function Shell() {
       if (session?.user) {
         const email = session.user.email
 
-        // Asigna rol de admin solo a tu cuenta principal de Google
+        // Asigna rol de admin en metadata de Supabase solo a tu cuenta principal
         if (email === 'verlu3003@gmail.com' && session.user.user_metadata?.role !== 'admin') {
           await supabase.auth.updateUser({ data: { role: 'admin' } })
         }
@@ -80,7 +80,8 @@ function Shell() {
           id: session.user.id,
           name: session.user.user_metadata?.name || email?.split('@')[0],
           email: email,
-          role: isAdmin ? 'admin' : 'user'
+          role: isAdmin ? 'admin' : 'user',
+          admin: isAdmin // <--- AQUÍ LE INDICAMOS A LA APP QUE TIENES PERMISOS DE ADMIN
         }
         
         useStore.getState().setUser(u)
