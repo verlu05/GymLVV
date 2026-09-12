@@ -171,6 +171,29 @@ if (path === '/api/me' || path === '/api/user/settings' || path === '/api/user/p
     throw err
   }
 
+// 13. Guardar cambios del usuario (Acento, Tema, Configuración)
+if (path === '/api/user' || path === '/user') {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { ok: false }
+
+  const body = typeof opts?.body === 'string' ? JSON.parse(opts.body) : (opts?.body || {})
+
+  // Extraemos lo que envía la app y actualizamos profiles en Supabase
+  const updateData = {}
+  if (body.accent !== undefined) updateData.accent = body.accent
+  if (body.settings !== undefined) updateData.settings = body.settings
+  if (body.theme !== undefined) updateData.settings = { ...(body.settings || {}), theme: body.theme }
+
+  const { error } = await supabase
+    .from('profiles')
+    .update(updateData)
+    .eq('id', user.id)
+
+  if (error) console.error('Error actualizando perfil en Supabase:', error)
+
+  return { ok: !error, ...body }
+}
+
   // COMPORTAMIENTO FALLBACK (Para cualquier otra ruta no capturada)
   const headers = Object.assign({ 'Content-Type': 'application/json' }, opts && opts.headers)
   if (remoteToken) headers.Authorization = 'Bearer ' + remoteToken
