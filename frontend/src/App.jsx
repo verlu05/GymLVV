@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef } from 'react'
 import { HashRouter, Routes, Route, Navigate, useNavigate, useLocation, useNavigationType } from 'react-router-dom'
 import { useStore } from './store/useStore.js'
 import { useUI } from './store/useUI.js'
+import { supabase } from './lib/supabase.js'
 import { bindUI } from './components/ui.jsx'
 import { ACCENTS } from './lib/format.js'
 import { setLang, useLang } from './lib/i18n.js'
@@ -63,6 +64,24 @@ function Shell() {
   const isGuest = useStore(s => s.isGuest())
   const needsMobileOnboarding = useStore(s => s.needsMobileOnboarding)
   const langV = useLang()   // re-renders the whole shell when the language (pack) changes
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (session?.user) {
+        if (session.user.email === 'verlu_fx@hotmail.com' && session.user.user_metadata?.role !== 'admin') {
+          await supabase.auth.updateUser({ data: { role: 'admin' } })
+        }
+        const u = {
+          id: session.user.id,
+          name: session.user.user_metadata?.name || session.user.email?.split('@')[0],
+          email: session.user.email,
+          role: session.user.user_metadata?.role || 'user'
+        }
+        useStore.getState().setUser(u)
+        await useStore.getState().pullState()
+      }
+    })
+    return () => subscription.unsubscribe()
+  }, [])
   useEffect(() => { setNav(navigate) }, [navigate])
   useEffect(() => { applyPrefs(S.theme, S.accent) }, [S.theme, S.accent])
   // 'system' needs to react live if the OS theme flips while the app is open, not just on
