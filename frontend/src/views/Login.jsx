@@ -5,7 +5,7 @@ import { t } from '../lib/i18n.js'
 import { useState, useRef, useEffect } from 'react'
 import Icon from '../components/Icon.jsx'
 import { Button } from '../components/ui.jsx'
-import { supabase } from '../lib/remote.js' // Si la ruta a tu cliente supabase varía, ajústala aquí
+import { supabase } from '../lib/supabase.js' // Si la ruta a tu cliente supabase varía, ajústala aquí
 
 function RegisterSheet({ close }) {
   const { setUser, pushState, pullState } = useStore()
