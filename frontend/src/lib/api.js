@@ -135,6 +135,29 @@ export async function api(path, opts) {
       return { user: profile || { id: user.id, email: user.email } }
     }
 
+// 11b. Guardar ajustes del usuario (Color, Idioma, Settings) - ESCRITURA
+if (path === '/api/me' || path === '/api/user/settings' || path === '/api/user/profile') {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { ok: false }
+
+  const body = JSON.parse(opts?.body || '{}')
+  
+  // Extraemos los campos que la interfaz puede enviar al guardar
+  const updateData = {}
+  if (body.accent !== undefined) updateData.accent = body.accent
+  if (body.settings !== undefined) updateData.settings = body.settings
+  if (body.language !== undefined) updateData.settings = { ...(body.settings || {}), lang: body.language }
+  if (body.check_in !== undefined) updateData.check_in = body.check_in
+
+  const { error } = await supabase
+    .from('profiles')
+    .update(updateData)
+    .eq('id', user.id)
+
+  if (error) console.error('Error guardando ajustes en Supabase:', error)
+  return { ok: !error, user: { id: user.id, ...updateData } }
+}
+
     // 12. Datos generales de entrenamientos/rutinas
     if (path === '/api/data') {
       const { data: { user } } = await supabase.auth.getUser()
