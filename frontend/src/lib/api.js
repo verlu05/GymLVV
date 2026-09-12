@@ -127,13 +127,20 @@ export async function api(path, opts) {
       return { allow_signup: true, require_invite: false }
     }
 
-    // 11. Datos del usuario actual (me)
-    if (path === '/api/me') {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return { user: null }
-      const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single()
-      return { user: profile || { id: user.id, email: user.email } }
-    }
+   // 11. Datos del usuario actual (me)
+if (path === '/api/me') {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { user: null }
+  const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single()
+  
+  return { 
+    user: profile ? {
+      ...profile,
+      name: profile.name || profile.username || 'Luismi',
+      accent: profile.accent || 'lime'
+    } : { id: user.id, email: user.email } 
+  }
+}
 
 // 11b. Guardar ajustes del usuario (Color, Idioma, Settings) - ESCRITURA
 if (path === '/api/me' || path === '/api/user/settings' || path === '/api/user/profile') {
