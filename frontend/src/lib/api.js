@@ -1,7 +1,5 @@
-// Importamos la instancia central de Supabase para no duplicar clientes
 import { supabase } from './supabase.js'
 
-// --- EXPORTS REQUERIDOS POR LA INTERFAZ ---
 export const IS_APPLE = /iPhone|iPad|iPod|Macintosh/.test(navigator.userAgent)
 export const IS_ANDROID = /Android/.test(navigator.userAgent)
 export const BIO = IS_APPLE ? 'Face ID / Touch ID' : IS_ANDROID ? 'fingerprint or face unlock' : 'your fingerprint, face or PIN'
@@ -13,7 +11,6 @@ export async function pairRedeem() { return { ok: true } }
 export async function passkeyRegister() { throw new Error('Passkeys no configuradas') }
 export async function passkeyLogin() { throw new Error('Passkeys no configuradas') }
 
-// --- ESTADO POR DEFECTO ---
 const DEFAULT_STATE = {
   routines: [],
   history: [],
@@ -24,22 +21,23 @@ const DEFAULT_STATE = {
   }
 }
 
-// --- INTERCEPTOR DE API ---
 export async function api(path, opts = {}) {
   try {
     const { data: { session } } = await supabase.auth.getSession()
     const user = session?.user
 
-    // 1. Configuración de la app
+    // 1. Configuración pública
     if (path === '/api/config') {
       return {
         registrationEnabled: true,
+        invite_only: false,
+        allow_guest: false,
         authProviders: ['email'],
         version: '1.0.0'
       }
     }
 
-    // 2. Información del usuario actual
+    // 2. Datos del usuario logueado
     if (path === '/api/me' || path === '/me') {
       if (!user) return { user: null }
       
@@ -61,10 +59,62 @@ export async function api(path, opts = {}) {
       }
     }
 
-    // 3. Carga del estado (GET /api/data)
+    // 3. Rutas del panel de administración (soluciona el pantallazo negro)
+    if (path === '/api/admin/users') {
+      const displayName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Usuario'
+      return {
+        users: [
+          {
+            id: user?.id || '1',
+            name: displayName,
+            created: new Date().toISOString(),
+            disabled: false,
+            admin: true,
+            workouts: 0,
+            hasPush: false,
+            live: null
+          }
+        ],
+        invite_only: false,
+        now: Date.now()
+      }
+    }
+
+    if (path.startsWith('/api/admin/user?')) {
+      return {
+        user: {
+          id: user?.id || '1',
+          name: user?.email || 'Usuario',
+          created: new Date().toISOString(),
+          disabled: false,
+          admin: true
+        },
+        unit: 'kg',
+        routines: [],
+        bodyweight: [],
+        workouts: []
+      }
+    }
+
+    if (path === '/api/admin/invites') {
+      return { invites: [], invite_only: false }
+    }
+
+    if (path === '/api/admin/audit') {
+      return {
+        events: [],
+        total: 0,
+        nextBefore: null,
+        enabled: false,
+        ip_mode: 'off',
+        retention: { max: 0, days: 0 },
+        now: Date.now()
+      }
+    }
+
+    // 4. Estado del usuario (GET /api/data)
     if (path.startsWith('/api/data') && (!opts.method || opts.method === 'GET')) {
       const targetUserId = user?.id
-
       if (!targetUserId) return { state: DEFAULT_STATE, rev: 1 }
 
       const { data, error } = await supabase
@@ -79,14 +129,13 @@ export async function api(path, opts = {}) {
       }
 
       if (!data) {
-        // Primera creación si no existe fila
         const { data: inserted } = await supabase
           .from('user_states')
           .insert([{ user_id: targetUserId, state: DEFAULT_STATE, rev: 1 }])
           .select('state, rev')
           .single()
 
-        return { state: inserted?.state || DEFAULT_STATE, rev: inserted?.rev || 1 }
+        return { state: inserted?.state || DEFAULT_STATE, rev: 1 }
       }
 
       return {
@@ -95,7 +144,7 @@ export async function api(path, opts = {}) {
       }
     }
 
-    // 4. Guardado del estado (PUT /api/data)
+    // 5. Guardado del estado (PUT /api/data)
     if (path.startsWith('/api/data') && opts.method === 'PUT') {
       if (!user?.id) throw new Error('Usuario no autenticado')
 
@@ -126,9 +175,15 @@ export async function api(path, opts = {}) {
       }
     }
 
-    // 5. Endpoints secundarios
-    if (path === '/api/activity' || path === '/api/push/rest-timer') {
+    // 6. Cierre de sesión
+    if (path === '/api/logout') {
+      await supabase.auth.signOut()
       return { ok: true }
+    }
+
+    // 7. Endpoints secundarios/notificaciones
+    if (path === '/api/activity' || path === '/api/push/rest-timer' || path === '/api/push/status') {
+      return { ok: true, subscribed: false }
     }
 
     return { ok: true }
