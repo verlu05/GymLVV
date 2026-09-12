@@ -5,7 +5,7 @@ import { t } from '../lib/i18n.js'
 import { useState, useRef, useEffect } from 'react'
 import Icon from '../components/Icon.jsx'
 import { Button } from '../components/ui.jsx'
-import { supabase } from '../lib/supabase.js' // Si la ruta a tu cliente supabase varía, ajústala aquí
+import { supabase } from '../lib/supabase.js'
 
 function RegisterSheet({ close }) {
   const { setUser, pushState, pullState } = useStore()
@@ -56,13 +56,38 @@ function RegisterSheet({ close }) {
   return <>
     <h3>{t('Crear cuenta')}</h3>
     <div className="muted small" style={{ marginBottom: 14 }}>{t('Introduce tus datos para registrarte en Supabase.')}</div>
-    <input ref={ref} className="input" type="email" placeholder={t('Tu Email')} value={email} onChange={e => setEmail(e.target.value)} />
-    <div style={{ height: 10 }} />
-    <input className="input" type="password" placeholder={t('Contraseña')} value={password} onChange={e => setPassword(e.target.value)} />
-    <div style={{ height: 10 }} />
-    <input className="input" placeholder={t('Nombre (opcional)')} maxLength={40} value={name} onChange={e => setName(e.target.value)} />
-    <div style={{ height: 12 }} />
-    <Button variant="primary" onClick={go} disabled={loading}>{loading ? t('Registrando...') : t('Registrarse')}</Button>
+    <form onSubmit={(e) => { e.preventDefault(); go(); }}>
+      <input 
+        ref={ref} 
+        className="input" 
+        type="email" 
+        autoComplete="email"
+        placeholder={t('Tu Email')} 
+        value={email} 
+        onChange={e => setEmail(e.target.value)} 
+      />
+      <div style={{ height: 10 }} />
+      <input 
+        className="input" 
+        type="password" 
+        autoComplete="new-password"
+        placeholder={t('Contraseña')} 
+        value={password} 
+        onChange={e => setPassword(e.target.value)} 
+      />
+      <div style={{ height: 10 }} />
+      <input 
+        className="input" 
+        type="text"
+        autoComplete="name"
+        placeholder={t('Nombre (opcional)')} 
+        maxLength={40} 
+        value={name} 
+        onChange={e => setName(e.target.value)} 
+      />
+      <div style={{ height: 12 }} />
+      <Button variant="primary" onClick={go} disabled={loading}>{loading ? t('Registrando...') : t('Registrarse')}</Button>
+    </form>
   </>
 }
 
@@ -109,12 +134,28 @@ export default function Login() {
       {head}
       <div className="muted" style={{ marginBottom: 24 }}>{t('Tus entrenamientos. Tu progreso.')}</div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 14 }}>
-        <input className="input" type="email" placeholder={t('Email')} value={email} onChange={e => setEmail(e.target.value)} />
-        <input className="input" type="password" placeholder={t('Contraseña')} value={password} onChange={e => setPassword(e.target.value)} />
-      </div>
+      <form onSubmit={(e) => { e.preventDefault(); signIn(); }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 14 }}>
+          <input 
+            className="input" 
+            type="email" 
+            autoComplete="username"
+            placeholder={t('Email')} 
+            value={email} 
+            onChange={e => setEmail(e.target.value)} 
+          />
+          <input 
+            className="input" 
+            type="password" 
+            autoComplete="current-password"
+            placeholder={t('Contraseña')} 
+            value={password} 
+            onChange={e => setPassword(e.target.value)} 
+          />
+        </div>
 
-      <Button variant="primary" icon="person" onClick={signIn} disabled={loading}>{loading ? t('Cargando...') : t('Iniciar sesión')}</Button>
+        <Button variant="primary" icon="person" onClick={signIn} disabled={loading}>{loading ? t('Cargando...') : t('Iniciar sesión')}</Button>
+      </form>
       <div style={{ height: 10 }} />
       <Button icon="sparkles" onClick={() => useUI.getState().openSheet(close => <RegisterSheet close={close} />)}>{t('Crear nueva cuenta')}</Button>
       <div style={{ height: 10 }} />
