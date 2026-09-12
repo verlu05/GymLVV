@@ -25,6 +25,7 @@ export async function api(path, opts = {}) {
   try {
     const { data: { session } } = await supabase.auth.getSession()
     const user = session?.user
+    const displayName = user?.user_metadata?.full_name || user?.user_metadata?.name || user?.email?.split('@')[0] || 'Usuario'
 
     // 1. Configuración pública
     if (path === '/api/config') {
@@ -37,15 +38,9 @@ export async function api(path, opts = {}) {
       }
     }
 
-    // 2. Datos del usuario logueado
+    // 2. Información del usuario
     if (path === '/api/me' || path === '/me') {
       if (!user) return { user: null }
-      
-      const displayName = user.user_metadata?.full_name 
-        || user.user_metadata?.name 
-        || user.email?.split('@')[0] 
-        || 'Usuario'
-
       return {
         user: {
           id: user.id,
@@ -59,60 +54,64 @@ export async function api(path, opts = {}) {
       }
     }
 
-    // 3. Rutas del panel de administración (soluciona el pantallazo negro)
-    if (path === '/api/admin/users') {
-      const displayName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Usuario'
-      return {
-        users: [
-          {
+    // 3. Bloque de Administración Completo
+    if (path.startsWith('/api/admin')) {
+      if (path === '/api/admin/users') {
+        return {
+          users: [
+            {
+              id: user?.id || '1',
+              name: displayName,
+              created: new Date().toISOString(),
+              disabled: false,
+              admin: true,
+              workouts: 0,
+              hasPush: false,
+              live: null
+            }
+          ],
+          invite_only: false,
+          now: Date.now()
+        }
+      }
+
+      if (path.startsWith('/api/admin/user?')) {
+        return {
+          user: {
             id: user?.id || '1',
             name: displayName,
             created: new Date().toISOString(),
             disabled: false,
-            admin: true,
-            workouts: 0,
-            hasPush: false,
-            live: null
-          }
-        ],
-        invite_only: false,
-        now: Date.now()
+            admin: true
+          },
+          unit: 'kg',
+          routines: [],
+          bodyweight: [],
+          workouts: []
+        }
       }
-    }
 
-    if (path.startsWith('/api/admin/user?')) {
-      return {
-        user: {
-          id: user?.id || '1',
-          name: user?.email || 'Usuario',
-          created: new Date().toISOString(),
-          disabled: false,
-          admin: true
-        },
-        unit: 'kg',
-        routines: [],
-        bodyweight: [],
-        workouts: []
+      if (path === '/api/admin/invites') {
+        return { invites: [], invite_only: false }
       }
-    }
 
-    if (path === '/api/admin/invites') {
-      return { invites: [], invite_only: false }
-    }
-
-    if (path === '/api/admin/audit') {
-      return {
-        events: [],
-        total: 0,
-        nextBefore: null,
-        enabled: false,
-        ip_mode: 'off',
-        retention: { max: 0, days: 0 },
-        now: Date.now()
+      if (path === '/api/admin/audit') {
+        return {
+          events: [],
+          total: 0,
+          nextBefore: null,
+          enabled: false,
+          ip_mode: 'off',
+          retention: { max: 0, days: 0 },
+          now: Date.now()
+        }
       }
+
+      // Respuesta genérica para cualquier otra subruta de admin
+      return { users: [], invites: [], events: [], ok: true }
     }
 
-    // 4. Estado del usuario (GET /api/data)
+    // 4. Carga de datos de usuario (GET /api/data)
     if (path.startsWith('/api/data') && (!opts.method || opts.method === 'GET')) {
       const targetUserId = user?.id
       if (!targetUserId) return { state: DEFAULT_STATE, rev: 1 }
@@ -144,7 +143,7 @@ export async function api(path, opts = {}) {
       }
     }
 
-    // 5. Guardado del estado (PUT /api/data)
+    // 5. Guardado de datos de usuario (PUT /api/data)
     if (path.startsWith('/api/data') && opts.method === 'PUT') {
       if (!user?.id) throw new Error('Usuario no autenticado')
 
@@ -175,13 +174,13 @@ export async function api(path, opts = {}) {
       }
     }
 
-    // 6. Cierre de sesión
+    // 6. Logout
     if (path === '/api/logout') {
       await supabase.auth.signOut()
       return { ok: true }
     }
 
-    // 7. Endpoints secundarios/notificaciones
+    // 7. Endpoints secundarios
     if (path === '/api/activity' || path === '/api/push/rest-timer' || path === '/api/push/status') {
       return { ok: true, subscribed: false }
     }
