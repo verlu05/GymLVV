@@ -5,7 +5,7 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
-// --- EXPORTS REQUERIDOS POR LA INTERFAZ (evitan errores de compilación) ---
+// --- EXPORTS REQUERIDOS POR LA INTERFAZ ---
 export const IS_APPLE = /iPhone|iPad|iPod|Macintosh/.test(navigator.userAgent)
 export const IS_ANDROID = /Android/.test(navigator.userAgent)
 export const BIO = IS_APPLE ? 'Face ID / Touch ID' : IS_ANDROID ? 'fingerprint or face unlock' : 'your fingerprint, face or PIN'
@@ -17,7 +17,7 @@ export async function pairRedeem() { return { ok: true } }
 export async function passkeyRegister() { throw new Error('Passkeys no configuradas') }
 export async function passkeyLogin() { throw new Error('Passkeys no configuradas') }
 
-// --- ESTADO POR DEFECTO SEGÚN OPENAPI ---
+// --- ESTADO POR DEFECTO ---
 const DEFAULT_STATE = {
   routines: [],
   history: [],
@@ -28,7 +28,7 @@ const DEFAULT_STATE = {
   }
 }
 
-// --- INTERCEPTOR PRINCIPAL DE API ---
+// --- INTERCEPTOR DE API ---
 export async function api(path, opts = {}) {
   try {
     const { data: { user } } = await supabase.auth.getUser()
@@ -42,21 +42,27 @@ export async function api(path, opts = {}) {
       }
     }
 
-    // 2. Información del usuario
-    if (path === '/api/me') {
+    // 2. Información del usuario actual (Resuelve el "Hi undefined")
+    if (path === '/api/me' || path === '/me') {
       if (!user) return { user: null }
+      
+      const displayName = user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split('@')[0] || 'Luismi'
+      
       return {
         user: {
           id: user.id,
           email: user.email,
-          username: user.email.split('@')[0],
+          name: displayName,
+          username: displayName,
+          admin: true,
           isAdmin: true
-        }
+        },
+        name: displayName
       }
     }
 
     // 3. Carga del estado (GET /api/data)
-    if (path === '/api/data' && (!opts.method || opts.method === 'GET')) {
+    if (path.startsWith('/api/data') && (!opts.method || opts.method === 'GET')) {
       if (!user) return { state: DEFAULT_STATE, rev: 1 }
 
       const { data, error } = await supabase
@@ -82,7 +88,7 @@ export async function api(path, opts = {}) {
     }
 
     // 4. Guardado del estado (PUT /api/data)
-    if (path === '/api/data' && opts.method === 'PUT') {
+    if (path.startsWith('/api/data') && opts.method === 'PUT') {
       if (!user) throw new Error('Usuario no autenticado')
 
       const body = typeof opts.body === 'string' ? JSON.parse(opts.body) : (opts.body || {})
@@ -112,7 +118,7 @@ export async function api(path, opts = {}) {
       }
     }
 
-    // 5. Endpoints secundarios (heartbeat, avisos de descanso, etc.)
+    // 5. Endpoints secundarios
     if (path === '/api/activity' || path === '/api/push/rest-timer') {
       return { ok: true }
     }
