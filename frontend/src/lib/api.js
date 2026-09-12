@@ -5,7 +5,19 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
-// Estado por defecto según el estándar de openGym
+// --- EXPORTS REQUERIDOS POR LA INTERFAZ (evitan errores de compilación) ---
+export const IS_APPLE = /iPhone|iPad|iPod|Macintosh/.test(navigator.userAgent)
+export const IS_ANDROID = /Android/.test(navigator.userAgent)
+export const BIO = IS_APPLE ? 'Face ID / Touch ID' : IS_ANDROID ? 'fingerprint or face unlock' : 'your fingerprint, face or PIN'
+export const VAULT = IS_APPLE ? 'iCloud Keychain' : IS_ANDROID ? 'Google Password Manager' : 'your password manager'
+
+export const webauthnOK = () => false
+export function setRemoteAuth() {}
+export async function pairRedeem() { return { ok: true } }
+export async function passkeyRegister() { throw new Error('Passkeys no configuradas') }
+export async function passkeyLogin() { throw new Error('Passkeys no configuradas') }
+
+// --- ESTADO POR DEFECTO SEGÚN OPENAPI ---
 const DEFAULT_STATE = {
   routines: [],
   history: [],
@@ -16,12 +28,12 @@ const DEFAULT_STATE = {
   }
 }
 
-// Función principal que intercepta las peticiones de la interfaz
+// --- INTERCEPTOR PRINCIPAL DE API ---
 export async function api(path, opts = {}) {
   try {
     const { data: { user } } = await supabase.auth.getUser()
 
-    // 1. Configuración de la aplicación
+    // 1. Configuración de la app
     if (path === '/api/config') {
       return {
         registrationEnabled: true,
@@ -30,7 +42,7 @@ export async function api(path, opts = {}) {
       }
     }
 
-    // 2. Información del usuario actual
+    // 2. Información del usuario
     if (path === '/api/me') {
       if (!user) return { user: null }
       return {
@@ -43,7 +55,7 @@ export async function api(path, opts = {}) {
       }
     }
 
-    // 3. Lectura del estado completo (GET /api/data)
+    // 3. Carga del estado (GET /api/data)
     if (path === '/api/data' && (!opts.method || opts.method === 'GET')) {
       if (!user) return { state: DEFAULT_STATE, rev: 1 }
 
@@ -56,7 +68,6 @@ export async function api(path, opts = {}) {
       if (error) console.error('Error leyendo user_states:', error)
 
       if (!data) {
-        // Si el usuario no tiene fila en user_states, la creamos
         await supabase
           .from('user_states')
           .insert([{ user_id: user.id, state: DEFAULT_STATE, rev: 1 }])
@@ -106,7 +117,6 @@ export async function api(path, opts = {}) {
       return { ok: true }
     }
 
-    // Fallback genérico para evitar errores en pantalla
     return { ok: true }
 
   } catch (err) {
