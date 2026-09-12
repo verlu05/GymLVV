@@ -1,9 +1,5 @@
-import { createClient } from '@supabase/supabase-js'
-
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
-
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+// Importamos la instancia central de Supabase para no duplicar clientes
+import { supabase } from './supabase.js'
 
 // --- EXPORTS REQUERIDOS POR LA INTERFAZ ---
 export const IS_APPLE = /iPhone|iPad|iPod|Macintosh/.test(navigator.userAgent)
@@ -31,7 +27,8 @@ const DEFAULT_STATE = {
 // --- INTERCEPTOR DE API ---
 export async function api(path, opts = {}) {
   try {
-    const { data: { user } } = await supabase.auth.getUser()
+    const { data: { session } } = await supabase.auth.getSession()
+    const user = session?.user
 
     // 1. Configuración de la app
     if (path === '/api/config') {
@@ -42,12 +39,15 @@ export async function api(path, opts = {}) {
       }
     }
 
-    // 2. Información del usuario actual (Resuelve el "Hi undefined")
+    // 2. Información del usuario actual
     if (path === '/api/me' || path === '/me') {
       if (!user) return { user: null }
       
-      const displayName = user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split('@')[0] || 'Luismi'
-      
+      const displayName = user.user_metadata?.full_name 
+        || user.user_metadata?.name 
+        || user.email?.split('@')[0] 
+        || 'Usuario'
+
       return {
         user: {
           id: user.id,
@@ -63,22 +63,30 @@ export async function api(path, opts = {}) {
 
     // 3. Carga del estado (GET /api/data)
     if (path.startsWith('/api/data') && (!opts.method || opts.method === 'GET')) {
-      if (!user) return { state: DEFAULT_STATE, rev: 1 }
+      const targetUserId = user?.id
+
+      if (!targetUserId) return { state: DEFAULT_STATE, rev: 1 }
 
       const { data, error } = await supabase
         .from('user_states')
         .select('state, rev')
-        .eq('user_id', user.id)
+        .eq('user_id', targetUserId)
         .maybeSingle()
 
-      if (error) console.error('Error leyendo user_states:', error)
+      if (error) {
+        console.error('Error leyendo user_states:', error)
+        return { state: DEFAULT_STATE, rev: 1 }
+      }
 
       if (!data) {
-        await supabase
+        // Primera creación si no existe fila
+        const { data: inserted } = await supabase
           .from('user_states')
-          .insert([{ user_id: user.id, state: DEFAULT_STATE, rev: 1 }])
+          .insert([{ user_id: targetUserId, state: DEFAULT_STATE, rev: 1 }])
+          .select('state, rev')
+          .single()
 
-        return { state: DEFAULT_STATE, rev: 1 }
+        return { state: inserted?.state || DEFAULT_STATE, rev: inserted?.rev || 1 }
       }
 
       return {
@@ -89,7 +97,7 @@ export async function api(path, opts = {}) {
 
     // 4. Guardado del estado (PUT /api/data)
     if (path.startsWith('/api/data') && opts.method === 'PUT') {
-      if (!user) throw new Error('Usuario no autenticado')
+      if (!user?.id) throw new Error('Usuario no autenticado')
 
       const body = typeof opts.body === 'string' ? JSON.parse(opts.body) : (opts.body || {})
       const newState = body.state || DEFAULT_STATE
@@ -103,7 +111,7 @@ export async function api(path, opts = {}) {
           state: newState,
           rev: nextRev,
           updated_at: new Date().toISOString()
-        })
+        }, { onConflict: 'user_id' })
         .select('state, rev')
         .single()
 
