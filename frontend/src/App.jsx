@@ -67,19 +67,27 @@ function Shell() {
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (session?.user) {
-        if (session.user.email === 'verlu_fx@hotmail.com' && session.user.user_metadata?.role !== 'admin') {
+        const email = session.user.email
+
+        // Asigna rol de admin solo a tu cuenta principal de Google
+        if (email === 'verlu3003@gmail.com' && session.user.user_metadata?.role !== 'admin') {
           await supabase.auth.updateUser({ data: { role: 'admin' } })
         }
+
+        const isAdmin = email === 'verlu3003@gmail.com' || session.user.user_metadata?.role === 'admin'
+
         const u = {
           id: session.user.id,
-          name: session.user.user_metadata?.name || session.user.email?.split('@')[0],
-          email: session.user.email,
-          role: session.user.user_metadata?.role || 'user'
+          name: session.user.user_metadata?.name || email?.split('@')[0],
+          email: email,
+          role: isAdmin ? 'admin' : 'user'
         }
+        
         useStore.getState().setUser(u)
         await useStore.getState().pullState()
       }
     })
+
     return () => subscription.unsubscribe()
   }, [])
   useEffect(() => { setNav(navigate) }, [navigate])
